@@ -1,48 +1,48 @@
 (ns argparse.core
   (:require
-   [schema.core :as s]
-   [clojure.tools.logging :as log]
-   [argparse.util])
+   [clojure.string :as str]
+   [clojure.tools.logging :as log])
   (:gen-class))
 
-(s/defschema Spec
-  {:spec {s/Keyword s/Any}})
+(defn add-argument [parser option-string]
+  (assoc parser :arguments [{:option-string option-string
+                             :dest (keyword (subs option-string 1))}]))
 
-(s/defn ^:private find-flag :- (s/maybe
-                                {:name s/Keyword
-                                 :flag s/Str
-                                 :spec {s/Keyword s/Any}})
-  [spec :- Spec
-   flag :- s/Str]
-  (some #(when-let [flag (some (fn [x] (when (= flag x) x))
-                               (argparse.util/ensure-vector (:flag (second %))))]
-           {:name (first %)
-            :flag flag
-            :spec (second %)})
-        (:spec spec)))
+(defn- numeric? [s]
+  (some? (parse-long s)))
 
-(s/defn ^:private parse-arg :- {:args {s/Keyword s/Any}
-                                :rest [s/Str]}
-  [spec :- Spec
-   args :- [s/Str]]
-  (argparse.util/cond-let
-    [x (argparse.util/str-rest elm "--")] x
-    [x (argparse.util/str-rest elm "-")] x))
+(defn- parse-option-arg [args option]
+  (let [option-string (:option-string option)]
+    (cond
+      (empty? args) [nil args]
 
-(s/defn parse-args :- {:args {s/Keyword s/Any}
-                       :rest [s/Str]}
-  "Parse argument."
-  [spec :- Spec
-   args :- [s/Str]]
-  (loop [args args
-         ret {}]
+      (and (str/starts-with? (first args) option-string)
+           (> (count (first args)) (count option-string)))
+      [(subs (first args) (count option-string)) (rest args)]
+
+      (= (first args) option-string)
+      (if-let [value (second args)]
+        (if (and (str/starts-with? value "-")
+                 (not (numeric? value)))
+          (throw (Exception. "Invalid argument format"))
+          [value (drop 2 args)])
+        (throw (Exception. "Missing argument for option")))
+
+      :else [nil args])))
+
+(defn parse-args [parser args]
+  (let [option (first (:arguments parser))]
+    (when (and (seq args)
+               (not (str/starts-with? (first args) (:option-string option)))
+               (not (str/starts-with? (first args) "-x")))
+      (throw (Exception. "Invalid argument")))
+
     (if (empty? args)
-      ret
-      (let [elm (first args)]
-        (argparse.util/cond-let
-          [x (argparse.util/str-rest elm "--")] x
-          [x (argparse.util/str-rest elm "-") x])
-        (recur (rest args) ret*)))))
+      {(:dest option) nil}
+      (let [[value remaining] (parse-option-arg args option)]
+        (when (seq remaining)
+          (throw (Exception. "Invalid additional arguments")))
+        {(:dest option) value}))))
 
 (defn -main
   "The entrypoint."
