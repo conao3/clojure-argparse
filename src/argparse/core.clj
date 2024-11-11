@@ -4,45 +4,52 @@
    [clojure.tools.logging :as log])
   (:gen-class))
 
-(defn add-argument [parser option-string]
-  (assoc parser :arguments [{:option-string option-string
-                             :dest (keyword (subs option-string 1))}]))
+(defn add-argument [parser option-string & {:keys [action const]}]
+  (let [dest (keyword (subs option-string 1))
+        arg {:option-string option-string
+             :dest dest
+             :action action
+             :const const}]
+    (-> parser
+        (update :arguments #(conj (vec %) arg))
+        (assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
 
 (defn- numeric? [s]
   (some? (parse-long s)))
 
-(defn- parse-option-arg [args option]
-  (let [option-string (:option-string option)]
-    (cond
-      (empty? args) [nil args]
+(defn- find-matching-arg [parser opt-string]
+  (some #(when (or (= (:option-string %) opt-string)
+                   (str/starts-with? opt-string (:option-string %))) %)
+        (:arguments parser)))
 
-      (and (str/starts-with? (first args) option-string)
-           (> (count (first args)) (count option-string)))
-      [(subs (first args) (count option-string)) (rest args)]
+(defn- handle-combined-format [arg-def opt-str]
+  (let [opt-len (count (:option-string arg-def))]
+    (when (> (count opt-str) opt-len)
+      (subs opt-str opt-len))))
 
-      (= (first args) option-string)
-      (if-let [value (second args)]
-        (if (and (str/starts-with? value "-")
-                 (not (numeric? value)))
-          (throw (Exception. "Invalid argument format"))
-          [value (drop 2 args)])
-        (throw (Exception. "Missing argument for option")))
-
-      :else [nil args])))
+(defn- parse-single-opt [parser opt-string args]
+  (if-let [arg (find-matching-arg parser opt-string)]
+    (case (:action arg)
+      :store-true  [{(:dest arg) true} args]
+      :store-const [{(:dest arg) (:const arg)} args]
+      (let [combined (handle-combined-format arg opt-string)
+            value (if combined combined (first args))]
+        (if (and value (str/starts-with? value "-") (not (numeric? value)))
+          (throw (Exception. (str "Invalid argument: " value)))
+          [{(:dest arg) value} (if combined args (rest args))])))
+    (throw (Exception. (str "Invalid option: " opt-string)))))
 
 (defn parse-args [parser args]
-  (let [option (first (:arguments parser))]
-    (when (and (seq args)
-               (not (str/starts-with? (first args) (:option-string option)))
-               (not (str/starts-with? (first args) "-x")))
-      (throw (Exception. "Invalid argument")))
-
-    (if (empty? args)
-      {(:dest option) nil}
-      (let [[value remaining] (parse-option-arg args option)]
-        (when (seq remaining)
-          (throw (Exception. "Invalid additional arguments")))
-        {(:dest option) value}))))
+  (loop [remaining args
+         result (:defaults parser {})]
+    (if (empty? remaining)
+      result
+      (let [arg (first remaining)
+            [parsed next-args]
+            (if (str/starts-with? arg "-")
+              (parse-single-opt parser arg (rest remaining))
+              (throw (Exception. (str "Invalid argument: " arg))))]
+        (recur next-args (merge result parsed))))))
 
 (defn -main
   "The entrypoint."
