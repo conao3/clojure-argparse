@@ -1,12 +1,13 @@
 (ns argparse.core
   (:require
    [clojure.string :as str]
-   [clojure.tools.logging :as log])
+   [clojure.tools.logging :as log]
+   [malli.core :as m])
   (:gen-class))
 
 (defn add-argument [parser option-string & {:keys [action const]}]
   (let [dest (keyword (subs option-string 1))
-        arg {:option-string option-string
+        arg {:option-string (subs option-string 1)
              :dest dest
              :action action
              :const const}]
@@ -14,42 +15,49 @@
         (update :arguments #(conj (vec %) arg))
         (assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
 
-(defn- numeric? [s]
+(m/=> numeric? [:function [:=> [:cat :string] :boolean]])
+(defn numeric? [s]
   (some? (parse-long s)))
 
-(defn- find-matching-arg [parser opt-string]
-  (some #(when (or (= (:option-string %) opt-string)
-                   (str/starts-with? opt-string (:option-string %))) %)
-        (:arguments parser)))
+(m/=> find-if [:function [:=> [:cat :any [:any]] :any]])
+(defn find-if [pred lst]
+  (first (filter pred lst)))
 
-(defn- handle-combined-format [arg-def opt-str]
-  (let [opt-len (count (:option-string arg-def))]
-    (when (> (count opt-str) opt-len)
-      (subs opt-str opt-len))))
+(m/=> parse-single-opt [:function [:=>
+                                   [:cat :any :string [:string]]
+                                   [:tuple :keyword :any [:string]]]])
+(defn parse-single-opt [parser arg args]
+  (if-let [argument (find-if #(= (subs arg 1) (:option-string %)) (:arguments parser))]
+    (let [target-arg (first args)
+          rest-args (rest args)]
+      (when (nil? target-arg)
+        (throw (Exception. (str "Required argument for: " arg))))
 
-(defn- parse-single-opt [parser opt-string args]
-  (if-let [arg (find-matching-arg parser opt-string)]
-    (case (:action arg)
-      :store-true  [{(:dest arg) true} args]
-      :store-const [{(:dest arg) (:const arg)} args]
-      (let [combined (handle-combined-format arg opt-string)
-            value (if combined combined (first args))]
-        (if (and value (str/starts-with? value "-") (not (numeric? value)))
-          (throw (Exception. (str "Invalid argument: " value)))
-          [{(:dest arg) value} (if combined args (rest args))])))
-    (throw (Exception. (str "Invalid option: " opt-string)))))
+      ;; accept -x-1 but -x-a is not accepted
+      ;; short option like -1 is not permitted, so -1 shoule be argument of -x.
+      (when (and (str/starts-with? target-arg "-")
+                 (not (numeric? target-arg)))
+        (throw (Exception. (str "Required argument for: " arg))))
+
+      [(:dest argument) target-arg rest-args])
+    (throw (Exception. (str "Invalid argument: " arg)))))
 
 (defn parse-args [parser args]
-  (loop [remaining args
-         result (:defaults parser {})]
+  (loop [result (:defaults parser {})
+         remaining args]
     (if (empty? remaining)
       result
       (let [arg (first remaining)
-            [parsed next-args]
-            (if (str/starts-with? arg "-")
+            [dest parsed next-args]
+            (cond
+              (str/starts-with? arg "--")
+              (throw (Exception. (str "Invalid argument: " arg))) ; wip
+
+              (str/starts-with? arg "-")
               (parse-single-opt parser arg (rest remaining))
-              (throw (Exception. (str "Invalid argument: " arg))))]
-        (recur next-args (merge result parsed))))))
+
+              :else (throw (Exception. (str "Invalid argument: " arg))))]
+        (recur (assoc result dest parsed) next-args)))))
 
 (defn -main
   "The entrypoint."
