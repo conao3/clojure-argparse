@@ -15,7 +15,8 @@
            (sut/find-if #(find % :z) [{:a 1} {:b 2} {:c 3}]))))
 
 (t/deftest test-parse-single-opt-test
-  (let [parser (sut/add-argument {} "-x")]
+  (let [parser (-> {}
+                   (sut/add-argument "-x"))]
     (t/testing "error"
       (t/is (thrown? Exception (sut/parse-single-opt parser "-x" [])))
       (t/is (thrown? Exception (sut/parse-single-opt parser "a" [])))
@@ -36,7 +37,8 @@
       )))
 
 (t/deftest test-optional-single-dash
-  (let [parser (sut/add-argument {} "-x")]
+  (let [parser (-> {}
+                   (sut/add-argument "-x"))]
 
     (t/testing "error"
       (t/is (thrown? Exception (sut/parse-args parser ["-x"])))
@@ -126,3 +128,32 @@
 
       (t/is (= {:x true :yyy 42 :z "a"}
                (sut/parse-args parser ["-x" "-yyy" "-z" "a"]))))))
+
+(t/deftest test-optionals-single-dash-long
+  (let [parser (-> {}
+                   (sut/add-argument "-foo"))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo" "--foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo" "-y"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fooa"]))))
+
+    (t/testing "successes"
+      (t/is (= {:foo nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:foo "a"}
+               (sut/parse-args parser ["-foo" "a"])))
+
+      (t/is (= {:foo "-1"}
+               (sut/parse-args parser ["-foo" "-1"])))
+
+      ;; (t/is (= {:foo "a"}
+      ;;          (sut/parse-args parser ["-fo" "a"])))
+
+      ;; (t/is (= {:foo "a"}
+      ;;          (sut/parse-args parser ["-f" "a"])))
+      )))
