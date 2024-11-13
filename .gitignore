@@ -1,1 +1,6 @@
 /target
+/result
+/.clj-kondo
+/.cpcache
+/.lsp
+/.nrepl-port
