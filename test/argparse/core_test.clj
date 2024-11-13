@@ -28,7 +28,7 @@
 
       ;; (t/is (= {:x "a"}
       ;;          (sut/parse-args parser ["-xa"])))
-      
+
       (t/is (= [:x "-1" []]
                (sut/parse-single-opt parser "-x" ["-1"])))
 
@@ -157,3 +157,96 @@
       ;; (t/is (= {:foo "a"}
       ;;          (sut/parse-args parser ["-f" "a"])))
       )))
+
+(t/deftest test-optionals-single-dash-subset-ambiguous
+  (let [parser (-> {}
+                   (sut/add-argument "-f")
+                   (sut/add-argument "-foobar")
+                   (sut/add-argument "-foorab"))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["-f"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo" "b"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foob"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fooba"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foora"]))))
+
+    (t/testing "successes"
+      (t/is (= {:f nil :foobar nil :foorab nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:f "a" :foobar nil :foorab nil}
+               (sut/parse-args parser ["-f" "a"])))
+
+      ;; (t/is (= {:f "a" :foobar nil :foorab nil}
+      ;;          (sut/parse-args parser ["-fa"])))
+
+      ;; (t/is (= {:f "oa" :foobar nil :foorab nil}
+      ;;          (sut/parse-args parser ["-foa"])))
+
+      ;; (t/is (= {:f "ooa" :foobar nil :foorab nil}
+      ;;          (sut/parse-args parser ["-fooa"])))
+
+      (t/is (= {:f nil :foobar "a" :foorab nil}
+               (sut/parse-args parser ["-foobar" "a"])))
+
+      (t/is (= {:f nil :foobar nil :foorab "a"}
+               (sut/parse-args parser ["-foorab" "a"]))))))
+
+(t/deftest test-optionals-single-dash-ambiguous
+  (let [parser (-> {}
+                   (sut/add-argument "-foobar")
+                   (sut/add-argument "-foorab"))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["-f"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-f" "a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fa"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foa"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo" "b"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-f=a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-foo=b"]))))
+
+    (t/testing "successes"
+      (t/is (= {:foobar nil :foorab nil}
+               (sut/parse-args parser [])))
+
+      ;; (t/is (= {:foobar "a" :foorab nil}
+      ;;          (sut/parse-args parser ["-foob" "a"])))
+
+      ;; (t/is (= {:foobar "a" :foorab nil}
+      ;;          (sut/parse-args parser ["-foob=a"])))
+
+      ;; (t/is (= {:foobar nil :foorab "a"}
+      ;;          (sut/parse-args parser ["-foor" "a"])))
+
+      ;; (t/is (= {:foobar nil :foorab "a"}
+      ;;          (sut/parse-args parser ["-foor=a"])))
+
+      ;; (t/is (= {:foobar "a" :foorab nil}
+      ;;          (sut/parse-args parser ["-fooba" "a"])))
+
+      ;; (t/is (= {:foobar "a" :foorab nil}
+      ;;          (sut/parse-args parser ["-fooba=a"])))
+
+      ;; (t/is (= {:foobar nil :foorab "a"}
+      ;;          (sut/parse-args parser ["-foora" "a"])))
+
+      ;; (t/is (= {:foobar nil :foorab "a"}
+      ;;          (sut/parse-args parser ["-foora=a"])))
+
+      (t/is (= {:foobar "a" :foorab nil}
+               (sut/parse-args parser ["-foobar" "a"])))
+
+      (t/is (= {:foobar "a" :foorab nil}
+               (sut/parse-args parser ["-foobar=a"])))
+
+      (t/is (= {:foobar nil :foorab "a"}
+               (sut/parse-args parser ["-foorab" "a"])))
+
+      (t/is (= {:foobar nil :foorab "a"}
+               (sut/parse-args parser ["-foorab=a"]))))))

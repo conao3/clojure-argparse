@@ -11,8 +11,7 @@
              :dest dest
              :action action}]
     (-> parser
-        (update :arguments #(conj (vec %) arg))
-        (assoc-in [:defaults dest] nil))))
+        (update :arguments #(conj (vec %) arg))(assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
 
 (m/=> numeric? [:function [:=> [:cat :string] :boolean]])
 (defn numeric? [s]
@@ -26,23 +25,34 @@
                                    [:cat :any :string [:string]]
                                    [:tuple :keyword :any [:string]]]])
 (defn parse-single-opt [parser arg args]
-  (let [remaining (atom args)
-        argument (or (find-if #(= (subs arg 1) (:option-string %)) (:arguments parser))
-                     (throw (Exception. (str "Invalid argument: " arg))))
-        parsed (if-let [f (:action argument)]
-                 (f)
-                 (let [target-arg (first args)]
-                   (when (nil? target-arg)
-                     (throw (Exception. (str "Required argument for: " arg))))
+  (let [[key pre-parsed] (let [cnt-equal (count (filter #{\=} arg))
+                               splits (str/split arg #"=" 2)]
+                           (cond
+                             (< 1 cnt-equal) (throw (Exception. (str "Argument has more than 1 =: " arg)))
+                             (= 1 cnt-equal)
+                             (do
+                               (when (= (nth splits 1) "")
+                                 (throw (Exception. (str "Argument of = should not be empty: " arg))))
+                               [(-> (nth splits 0) (subs 1)) (nth splits 1)])
+                             :else [(-> (nth splits 0) (subs 1))]))
+        remaining (atom args)
+        argument (or (find-if #(= key (:option-string %)) (:arguments parser))
+                     (throw (Exception. (str "Invalid argument: " key))))
+        parsed (or pre-parsed
+                   (if-let [f (:action argument)]
+                     (f)
+                     (let [target-arg (first args)]
+                       (when (nil? target-arg)
+                         (throw (Exception. (str "Required argument for: " key))))
 
-                   ;; accept -x-1 but -x-a is not accepted
-                   ;; short option like -1 is not permitted, so -1 shoule be argument of -x.
-                   (when (and (str/starts-with? target-arg "-")
-                         (not (numeric? target-arg)))
-                     (throw (Exception. (str "Required argument for: " arg))))
+                       ;; accept -x-1 but -x-a is not accepted
+                       ;; short option like -1 is not permitted, so -1 shoule be argument of -x.
+                       (when (and (str/starts-with? target-arg "-")
+                                  (not (numeric? target-arg)))
+                         (throw (Exception. (str "Required argument for: " key))))
 
-                   (swap! remaining rest)
-                   target-arg))]
+                       (swap! remaining rest)
+                       target-arg)))]
 
     [(:dest argument) parsed @remaining]))
 
