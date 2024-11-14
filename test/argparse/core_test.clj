@@ -432,3 +432,30 @@
 
       (t/is (= {:f true :bar nil :baz 42}
                (sut/parse-args parser ["/ba" "+f"]))))))
+
+(t/deftest test-optionals-short-long
+  (let [parser (-> {}
+                   (sut/add-argument ["-v" "--verbose" "-n" "--noisy"]
+                                     :action (constantly true)))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["--x" "--verbose"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-N"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-v" "x"]))))
+
+    (t/testing "successes"
+      (t/is (= {:verbose nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:verbose true}
+               (sut/parse-args parser ["-v"])))
+
+      (t/is (= {:verbose true}
+               (sut/parse-args parser ["--verbose"])))
+
+      (t/is (= {:verbose true}
+               (sut/parse-args parser ["-n"])))
+
+      (t/is (= {:verbose true}
+               (sut/parse-args parser ["--noisy"]))))))
