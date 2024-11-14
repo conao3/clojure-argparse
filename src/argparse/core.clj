@@ -5,10 +5,25 @@
    [malli.core :as m])
   (:gen-class))
 
+(m/=> get-option-key [:function [:=> [:cat :string] :string]])
+(defn get-option-key [arg]
+  (when (or (= "-" arg)
+            (= "--" arg))
+    (throw (Exception. (str "option-string should not be - or --: " arg))))
+
+  (or
+   (when (str/starts-with? arg "---")
+     (throw (Exception. (str "option-string should be prefixed - or --: " arg))))
+   (when (str/starts-with? arg "--")
+     (subs arg 2))
+   (when (str/starts-with? arg "-")
+     (subs arg 1))
+   (throw (Exception. (str "option-string should be prefixed - or --: " arg)))))
+
 (defn add-argument [parser option-string & {:keys [action dest]}]
-  (let [dest (keyword (or (some-> dest name)
-                          (subs option-string 1)))
-        arg {:option-string (subs option-string 1)
+  (let [key (get-option-key option-string)
+        dest (keyword (or (some-> dest name) key))
+        arg {:option-string key
              :dest dest
              :action action}]
     (-> parser
@@ -17,7 +32,8 @@
 
 (m/=> numeric? [:function [:=> [:cat :string] :boolean]])
 (defn numeric? [s]
-  (some? (parse-long s)))
+  (or (some? (parse-long s))
+      (some? (parse-double s))))
 
 (m/=> find-if [:function [:=> [:cat :any [:any]] :any]])
 (defn find-if [pred lst]
@@ -35,8 +51,8 @@
                              (do
                                (when (= (nth splits 1) "")
                                  (throw (Exception. (str "Argument of = should not be empty: " arg))))
-                               [(-> (nth splits 0) (subs 1)) (nth splits 1)])
-                             :else [(-> (nth splits 0) (subs 1))]))
+                               [(-> (nth splits 0) get-option-key) (nth splits 1)])
+                             :else [(-> (nth splits 0) get-option-key)]))
         remaining (atom args)
         argument (or (find-if #(= key (:option-string %)) (:arguments parser))
                      (throw (Exception. (str "Invalid argument: " key))))
@@ -52,7 +68,8 @@
                                   (not
                                    (and
                                     (numeric? target-arg)
-                                    (not (find-if #(= (subs target-arg 1) (:option-string %)) (:arguments parser))))))
+                                    (not (let [tmp-opt (get-option-key target-arg)]
+                                           (find-if #(= tmp-opt (:option-string %)) (:arguments parser)))))))
                          (throw (Exception. (str "Required argument for: " key))))
 
                        (swap! remaining rest)
@@ -68,9 +85,6 @@
       (let [arg (first remaining)
             [dest parsed next-args]
             (cond
-              (str/starts-with? arg "--")
-              (throw (Exception. (str "Invalid argument: " arg))) ; wip
-
               (str/starts-with? arg "-")
               (parse-single-opt parser arg (rest remaining))
 

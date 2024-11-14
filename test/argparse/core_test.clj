@@ -277,3 +277,31 @@
       ;; (t/is (= {:one "-2"}
       ;;          (sut/parse-args parser ["-1-2"])))
       )))
+
+(t/deftest test-optionals-double-dash
+  (let [parser (-> {}
+                   (sut/add-argument "--foo"))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["--foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-f"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-f" "a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--foo" "-x"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--foo" "--bar"]))))
+
+    (t/testing "successes"
+      (t/is (= {:foo nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:foo "a"}
+               (sut/parse-args parser ["--foo" "a"])))
+
+      (t/is (= {:foo "a"}
+               (sut/parse-args parser ["--foo=a"])))
+
+      (t/is (= {:foo "-2.5"}
+               (sut/parse-args parser ["--foo" "-2.5"])))
+
+      (t/is (= {:foo "-2.5"}
+               (sut/parse-args parser ["--foo=-2.5"]))))))
