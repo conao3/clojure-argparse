@@ -333,3 +333,33 @@
 
       (t/is (= {:badger true :bat nil}
                (sut/parse-args parser ["--badger"]))))))
+
+(t/deftest test-optionals-double-dash-prefix-match
+  (let [parser (-> {}
+                   (sut/add-argument "--badger" :action (constantly true))
+                   (sut/add-argument "--ba"))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["--bar"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--b"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--ba"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--b=2"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--badge" "5"]))))
+
+    (t/testing "successes"
+      (t/is (= {:badger nil :ba nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:badger nil :ba "X"}
+               (sut/parse-args parser ["--ba" "X"])))
+
+      (t/is (= {:badger nil :ba "X"}
+               (sut/parse-args parser ["--ba=X"])))
+
+      ;; we don't support partial match
+      (t/is (thrown? Exception (sut/parse-args parser ["--bad"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--badg"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--badge"])))
+
+      (t/is (= {:badger true :ba nil}
+               (sut/parse-args parser ["--badger"]))))))
