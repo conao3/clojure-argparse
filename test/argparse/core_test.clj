@@ -363,3 +363,72 @@
 
       (t/is (= {:badger true :ba nil}
                (sut/parse-args parser ["--badger"]))))))
+
+(t/deftest test-optionals-single-double-dash
+  (let [parser (-> {}
+                   (sut/add-argument "-f" :action (constantly true))
+                   (sut/add-argument "--bar")
+                   (sut/add-argument "-baz" :action (constantly 42)))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["--bar"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fbar"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fbaz"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-bazf"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-b" "B"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["B"]))))
+
+    (t/testing "successes"
+      (t/is (= {:f nil :bar nil :baz nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:f true :bar nil :baz nil}
+               (sut/parse-args parser ["-f"])))
+
+      (t/is (thrown? Exception (sut/parse-args parser ["--ba" "B"])))
+
+      (t/is (= {:f true :bar "B" :baz nil}
+               (sut/parse-args parser ["-f" "--bar" "B"])))
+
+      (t/is (thrown? Exception (sut/parse-args parser ["-f" "-b"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-ba" "-f"]))))))
+
+;; we don't support :prefix-chars
+#_(t/deftest test-optionals-alternate-prefix-chars
+  (let [parser (-> {:prefix-chars "+:/"}
+                   (sut/add-argument "+f" :action (constantly true))
+                   (sut/add-argument "::bar")
+                   (sut/add-argument "/baz" :action (constantly 42)))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["--bar"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-fbar"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-b" "B"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["B"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-f"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--bar" "B"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-baz"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-h"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["--help"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["+h"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["::help"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["/help"]))))
+
+    (t/testing "successes"
+      (t/is (= {:f nil :bar nil :baz nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:f true :bar nil :baz nil}
+               (sut/parse-args parser ["+f"])))
+
+      (t/is (= {:f nil :bar "B" :baz nil}
+               (sut/parse-args parser ["::ba" "B"])))
+
+      (t/is (= {:f true :bar "B" :baz nil}
+               (sut/parse-args parser ["+f" "::bar" "B"])))
+
+      (t/is (= {:f true :bar nil :baz 42}
+               (sut/parse-args parser ["+f" "/b"])))
+
+      (t/is (= {:f true :bar nil :baz 42}
+               (sut/parse-args parser ["/ba" "+f"]))))))
