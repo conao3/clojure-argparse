@@ -250,3 +250,30 @@
 
       (t/is (= {:foobar nil :foorab "a"}
                (sut/parse-args parser ["-foorab=a"]))))))
+
+(t/deftest test-optionals-numeric
+  (let [parser (-> {}
+                   (sut/add-argument "-1" :dest :one))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["-1"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-1" "--foo"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-1" "-y"])))
+      (t/is (thrown? Exception (sut/parse-args parser ["-1" "-1"])))
+      ;; (t/is (thrown? Exception (sut/parse-args parser ["-1" "-2"])))  ; why don't we do this, `-x -1` is accepted
+      )
+
+    (t/testing "successes"
+      (t/is (= {:one nil}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:one "a"}
+               (sut/parse-args parser ["-1" "a"])))
+
+      ;; (t/is (= {:one "a"}
+      ;;          (sut/parse-args parser ["-1a"])))
+
+      ;; (t/is (= {:one "-2"}
+      ;;          (sut/parse-args parser ["-1-2"])))
+      )))

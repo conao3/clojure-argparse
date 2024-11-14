@@ -5,13 +5,15 @@
    [malli.core :as m])
   (:gen-class))
 
-(defn add-argument [parser option-string & {:keys [action]}]
-  (let [dest (keyword (subs option-string 1))
+(defn add-argument [parser option-string & {:keys [action dest]}]
+  (let [dest (keyword (or (some-> dest name)
+                          (subs option-string 1)))
         arg {:option-string (subs option-string 1)
              :dest dest
              :action action}]
     (-> parser
-        (update :arguments #(conj (vec %) arg))(assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
+        (update :arguments #(conj (vec %) arg))
+        (assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
 
 (m/=> numeric? [:function [:=> [:cat :string] :boolean]])
 (defn numeric? [s]
@@ -46,9 +48,11 @@
                          (throw (Exception. (str "Required argument for: " key))))
 
                        ;; accept -x-1 but -x-a is not accepted
-                       ;; short option like -1 is not permitted, so -1 shoule be argument of -x.
                        (when (and (str/starts-with? target-arg "-")
-                                  (not (numeric? target-arg)))
+                                  (not
+                                   (and
+                                    (numeric? target-arg)
+                                    (not (find-if #(= (subs target-arg 1) (:option-string %)) (:arguments parser))))))
                          (throw (Exception. (str "Required argument for: " key))))
 
                        (swap! remaining rest)
