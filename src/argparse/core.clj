@@ -20,6 +20,7 @@
      (subs arg 1))
    (throw (Exception. (str "option-string should be prefixed - or --: " arg)))))
 
+(m/=> add-argument [:function [:=> [:cat :any :any :any] :string]])
 (defn add-argument [parser option-string & {:keys [action dest]}]
   (let [key (get-option-key option-string)
         dest (keyword (or (some-> dest name) key))
