@@ -30,7 +30,7 @@
    (throw (Exception. (str "option-string should be prefixed - or --: " arg)))))
 
 (m/=> add-argument [:function [:=> [:cat :any [:or :string [:seqable :string]] :any] :string]])
-(defn add-argument [parser option-string & {:keys [action dest default]}]
+(defn add-argument [parser option-string & {:keys [action dest default nargs]}]
   (let [option-string* (cond-> option-string
                          (string? option-string) vector)
         key (->> option-string*
@@ -41,9 +41,11 @@
                                   (subs 2))
                           (some-> (find-if #(str/starts-with? % "-") option-string*)
                                   (subs 1))))
-        arg {:option-string key
-             :dest dest
-             :action action}]
+        arg (cond-> {}
+              key (assoc :option-string key)
+              dest (assoc :dest dest)
+              action (assoc :action action)
+              nargs (assoc :nargs nargs))]
     (-> parser
         (update :arguments #(conj (vec %) arg))
         (assoc-in [:defaults dest] default))))
@@ -65,24 +67,28 @@
         remaining (atom args)
         argument (or (find-if #((:option-string %) key) (:arguments parser))
                      (throw (Exception. (str "Invalid argument: " key))))
+        arg-cnt (or (:nargs argument) 1)
         parsed (or pre-parsed
                    (if-let [f (:action argument)]
                      (f)
-                     (let [target-arg (first args)]
-                       (when (nil? target-arg)
-                         (throw (Exception. (str "Required argument for: " key))))
+                     (let [target-args (take arg-cnt args)]
+                       (when-not (= arg-cnt (count target-args))
+                         (throw (Exception. (format "Required %s argument for: %s" arg-cnt key))))
 
                        ;; accept -x-1 but -x-a is not accepted
-                       (when (and (str/starts-with? target-arg "-")
-                                  (not
-                                   (and
-                                    (numeric? target-arg)
-                                    (not (let [tmp-opt (get-option-key target-arg)]
-                                           (find-if #((:option-string %) tmp-opt) (:arguments parser)))))))
-                         (throw (Exception. (str "Required argument for: " key))))
+                       (doseq [target-arg target-args]
+                         (when (and (str/starts-with? target-arg "-")
+                                    (not
+                                     (and
+                                      (numeric? target-arg)
+                                      (not (let [tmp-opt (get-option-key target-arg)]
+                                             (find-if #((:option-string %) tmp-opt) (:arguments parser)))))))
+                           (throw (Exception. (str "Required argument for: " key)))))
 
-                       (swap! remaining rest)
-                       target-arg)))]
+                       (swap! remaining #(nthrest % arg-cnt))
+
+                       (cond-> target-args
+                         (nil? (:nargs argument)) first))))]
 
     [(:dest argument) parsed @remaining]))
 

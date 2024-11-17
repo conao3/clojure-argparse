@@ -498,3 +498,55 @@
 
       (t/is (= {:x nil :y "y"}
                (sut/parse-args parser ["-y" "y"]))))))
+
+(t/deftest test-optionals-nargs-default
+  (t/testing "Tests not specifying the number of args for an Optional"
+    (let [parser (-> {}
+                     (sut/add-argument ["-x"]))]
+
+      (t/testing "failures"
+        (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["-x"]))))
+
+      (t/testing "successes"
+        (t/is (= {:x nil}
+                 (sut/parse-args parser [])))
+
+        (t/is (= {:x "a"}
+                 (sut/parse-args parser ["-x" "a"])))))))
+
+(t/deftest test-optionals-nargs-1
+  (t/testing "Tests specifying 1 arg for an Optional"
+    (let [parser (-> {}
+                     (sut/add-argument ["-x"] :nargs 1))]
+
+      (t/testing "failures"
+        (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["-x"]))))
+
+      (t/testing "successes"
+        (t/is (= {:x nil}
+                 (sut/parse-args parser [])))
+
+        (t/is (= {:x ["a"]}
+                 (sut/parse-args parser ["-x" "a"])))))))
+
+(t/deftest test-optionals-nargs-3
+  (t/testing "Tests specifying 3 args for an Optional"
+    (let [parser (-> {}
+                     (sut/add-argument ["-x"] :nargs 3))]
+
+      (t/testing "failures"
+        (t/is (thrown? Exception (sut/parse-args parser ["a"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["-x"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["-x" "a"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["-x" "a" "b"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["a" "-x"])))
+        (t/is (thrown? Exception (sut/parse-args parser ["a" "-x" "b"]))))
+
+      (t/testing "successes"
+        (t/is (= {:x nil}
+                 (sut/parse-args parser [])))
+
+        (t/is (= {:x ["a" "b" "c"]}
+                 (sut/parse-args parser ["-x" "a" "b" "c"])))))))
