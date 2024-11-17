@@ -5,6 +5,15 @@
    [malli.core :as m])
   (:gen-class))
 
+(m/=> numeric? [:function [:=> [:cat :string] :boolean]])
+(defn numeric? [s]
+  (or (some? (parse-long s))
+      (some? (parse-double s))))
+
+(m/=> find-if [:function [:=> [:cat :any [:any]] :any]])
+(defn find-if [pred lst]
+  (first (filter pred lst)))
+
 (m/=> get-option-key [:function [:=> [:cat :string] :string]])
 (defn get-option-key [arg]
   (when (or (= "-" arg)
@@ -20,25 +29,24 @@
      (subs arg 1))
    (throw (Exception. (str "option-string should be prefixed - or --: " arg)))))
 
-(m/=> add-argument [:function [:=> [:cat :any :any :any] :string]])
+(m/=> add-argument [:function [:=> [:cat :any [:or :string [:seqable :string]] :any] :string]])
 (defn add-argument [parser option-string & {:keys [action dest]}]
-  (let [key (get-option-key option-string)
-        dest (keyword (or (some-> dest name) key))
+  (let [option-string* (cond-> option-string
+                         (string? option-string) vector)
+        key (->> option-string*
+                 (map get-option-key)
+                 set)
+        dest (keyword (or (some-> dest name)
+                          (some-> (find-if #(str/starts-with? % "--") option-string*)
+                                  (subs 2))
+                          (some-> (find-if #(str/starts-with? % "-") option-string*)
+                                  (subs 1))))
         arg {:option-string key
              :dest dest
              :action action}]
     (-> parser
         (update :arguments #(conj (vec %) arg))
         (assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
-
-(m/=> numeric? [:function [:=> [:cat :string] :boolean]])
-(defn numeric? [s]
-  (or (some? (parse-long s))
-      (some? (parse-double s))))
-
-(m/=> find-if [:function [:=> [:cat :any [:any]] :any]])
-(defn find-if [pred lst]
-  (first (filter pred lst)))
 
 (m/=> parse-single-opt [:function [:=>
                                    [:cat :any :string [:string]]
@@ -55,7 +63,7 @@
                                [(-> (nth splits 0) get-option-key) (nth splits 1)])
                              :else [(-> (nth splits 0) get-option-key)]))
         remaining (atom args)
-        argument (or (find-if #(= key (:option-string %)) (:arguments parser))
+        argument (or (find-if #((:option-string %) key) (:arguments parser))
                      (throw (Exception. (str "Invalid argument: " key))))
         parsed (or pre-parsed
                    (if-let [f (:action argument)]
@@ -70,7 +78,7 @@
                                    (and
                                     (numeric? target-arg)
                                     (not (let [tmp-opt (get-option-key target-arg)]
-                                           (find-if #(= tmp-opt (:option-string %)) (:arguments parser)))))))
+                                           (find-if #((:option-string %) tmp-opt) (:arguments parser)))))))
                          (throw (Exception. (str "Required argument for: " key))))
 
                        (swap! remaining rest)
