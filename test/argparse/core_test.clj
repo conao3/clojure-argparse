@@ -459,3 +459,42 @@
 
       (t/is (= {:verbose true}
                (sut/parse-args parser ["--noisy"]))))))
+
+(t/deftest test-optionals-dest
+  (let [parser (-> {}
+                   (sut/add-argument ["--foo-bar"])
+                   (sut/add-argument ["--baz"] :dest :zabbaz))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["a"]))))
+
+    (t/testing "successes"
+      (t/is (= {:foo-bar "f" :zabbaz nil}
+               (sut/parse-args parser ["--foo-bar" "f"])))
+
+      (t/is (= {:foo-bar nil :zabbaz "g"}
+               (sut/parse-args parser ["--baz" "g"])))
+
+      (t/is (= {:foo-bar "h" :zabbaz "i"}
+               (sut/parse-args parser ["--foo-bar" "h" "--baz" "i"])))
+
+      (t/is (= {:foo-bar "k" :zabbaz "j"}
+               (sut/parse-args parser ["--baz" "j" "--foo-bar" "k"]))))))
+
+(t/deftest test-optionals-default
+  (let [parser (-> {}
+                   (sut/add-argument ["-x"])
+                   (sut/add-argument ["-y"] :default 42))]
+
+    (t/testing "failures"
+      (t/is (thrown? Exception (sut/parse-args parser ["a"]))))
+
+    (t/testing "successes"
+      (t/is (= {:x nil :y 42}
+               (sut/parse-args parser [])))
+
+      (t/is (= {:x "x" :y 42}
+               (sut/parse-args parser ["-x" "x"])))
+
+      (t/is (= {:x nil :y "y"}
+               (sut/parse-args parser ["-y" "y"]))))))

@@ -30,7 +30,7 @@
    (throw (Exception. (str "option-string should be prefixed - or --: " arg)))))
 
 (m/=> add-argument [:function [:=> [:cat :any [:or :string [:seqable :string]] :any] :string]])
-(defn add-argument [parser option-string & {:keys [action dest]}]
+(defn add-argument [parser option-string & {:keys [action dest default]}]
   (let [option-string* (cond-> option-string
                          (string? option-string) vector)
         key (->> option-string*
@@ -46,7 +46,7 @@
              :action action}]
     (-> parser
         (update :arguments #(conj (vec %) arg))
-        (assoc-in [:defaults dest] (if (= action :store-true) false nil)))))
+        (assoc-in [:defaults dest] default))))
 
 (m/=> parse-single-opt [:function [:=>
                                    [:cat :any :string [:string]]
