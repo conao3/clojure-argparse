@@ -33,78 +33,42 @@
 (defn add-argument [parser option-string & {:keys [action dest default nargs]}]
   (let [option-string* (cond-> option-string
                          (string? option-string) vector)
-        key (->> option-string*
-                 (map get-option-key)
-                 set)
         dest (keyword (or (some-> dest name)
                           (some-> (find-if #(str/starts-with? % "--") option-string*)
                                   (subs 2))
                           (some-> (find-if #(str/starts-with? % "-") option-string*)
                                   (subs 1))))
-        arg (cond-> {}
-              key (assoc :option-string key)
+        arg (cond-> {:option-string (set option-string*)}
               dest (assoc :dest dest)
               action (assoc :action action)
               nargs (assoc :nargs nargs))]
     (-> parser
         (update :arguments #(conj (vec %) arg))
-        (assoc-in [:defaults dest] default))))
+        (assoc-in [:default dest] default))))
 
 (m/=> parse-single-opt [:function [:=>
                                    [:cat :any :string [:string]]
                                    [:tuple :keyword :any [:string]]]])
-(defn parse-single-opt [parser arg args]
-  (let [[key pre-parsed] (let [cnt-equal (count (filter #{\=} arg))
-                               splits (str/split arg #"=" 2)]
-                           (cond
-                             (< 1 cnt-equal) (throw (Exception. (str "Argument has more than 1 =: " arg)))
-                             (= 1 cnt-equal)
-                             (do
-                               (when (= (nth splits 1) "")
-                                 (throw (Exception. (str "Argument of = should not be empty: " arg))))
-                               [(-> (nth splits 0) get-option-key) (nth splits 1)])
-                             :else [(-> (nth splits 0) get-option-key)]))
-        remaining (atom args)
-        argument (or (find-if #((:option-string %) key) (:arguments parser))
-                     (throw (Exception. (str "Invalid argument: " key))))
-        arg-cnt (or (:nargs argument) 1)
-        parsed (or pre-parsed
-                   (if-let [f (:action argument)]
-                     (f)
-                     (let [target-args (take arg-cnt args)]
-                       (when-not (= arg-cnt (count target-args))
-                         (throw (Exception. (format "Required %s argument for: %s" arg-cnt key))))
-
-                       ;; accept -x-1 but -x-a is not accepted
-                       (doseq [target-arg target-args]
-                         (when (and (str/starts-with? target-arg "-")
-                                    (not
-                                     (and
-                                      (numeric? target-arg)
-                                      (not (let [tmp-opt (get-option-key target-arg)]
-                                             (find-if #((:option-string %) tmp-opt) (:arguments parser)))))))
-                           (throw (Exception. (str "Required argument for: " key)))))
-
-                       (swap! remaining #(nthrest % arg-cnt))
-
-                       (cond-> target-args
-                         (nil? (:nargs argument)) first))))]
-
-    [(:dest argument) parsed @remaining]))
-
 (defn parse-args [parser args]
-  (loop [result (:defaults parser {})
-         remaining args]
-    (if (empty? remaining)
-      result
-      (let [arg (first remaining)
-            [dest parsed next-args]
-            (cond
-              (str/starts-with? arg "-")
-              (parse-single-opt parser arg (rest remaining))
+  (let [res (atom (:default parser))
+        args (atom args)
+        position-args (atom [])]
+    (loop []
+      (let [arg (first @args)]
+        (cond
+          (str/starts-with? arg "-")
+          (do
+            (throw (Exception "not implemented"))
+            (swap! args next))
 
-              :else (throw (Exception. (str "Invalid argument: " arg))))]
-        (recur (assoc result dest parsed) next-args)))))
+          :else
+          (do
+            (swap! position-args conj arg)
+            (swap! args next))))
+
+      (when (seq @args)
+        (recur)))
+    @res))
 
 (defn -main
   "The entrypoint."
