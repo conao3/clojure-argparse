@@ -14,6 +14,19 @@
 (defn find-if [pred lst]
   (first (filter pred lst)))
 
+(m/=> take! [:function [:=> [:car :any] :any]])
+(defn take! [args n]
+  (let [res (transient [])]
+    (dotimes [_ n]
+      (let [arg (first args)]
+        (when (nil? arg)
+          (throw (Exception. "Argument required.  Unexpected ending of input.")))
+        (when (str/starts-with? arg "-")
+          (throw (Exception. (str "Argument required.  Value is dash prefixed: " arg))))
+        (conj! res arg)
+        (swap! arg next)))
+    (persistent! res)))
+
 (m/=> get-option-key [:function [:=> [:cat :string] :string]])
 (defn get-option-key [arg]
   (when (or (= "-" arg)
@@ -43,30 +56,30 @@
               action (assoc :action action)
               nargs (assoc :nargs nargs))]
     (-> parser
-        (update :arguments #(conj (vec %) arg))
+        (update :argument #(conj (vec %) arg))
         (assoc-in [:default dest] default))))
 
-(m/=> parse-single-opt [:function [:=>
-                                   [:cat :any :string [:string]]
-                                   [:tuple :keyword :any [:string]]]])
+(m/=> parse-args [:function [:=> [:cat :any :any] :any]])
 (defn parse-args [parser args]
   (let [res (atom (:default parser))
-        args (atom args)
+        args* (atom args)
         position-args (atom [])]
     (loop []
-      (let [arg (first @args)]
-        (cond
-          (str/starts-with? arg "-")
-          (do
-            (throw (Exception "not implemented"))
-            (swap! args next))
+      (when @args*
+        (let [arg (first @args*)]
+          (cond
+            (str/starts-with? arg "-")
+            (do
+              (let [argument (or (find-if #((:option-string %) arg) (:argument parser))
+                                 (throw (Exception. (str "Invalid argument: " arg))))]
+                
+                (swap! args* next)))
 
-          :else
-          (do
-            (swap! position-args conj arg)
-            (swap! args next))))
+            :else
+            (do
+              (swap! position-args conj arg)
+              (swap! args* next))))
 
-      (when (seq @args)
         (recur)))
     @res))
 
