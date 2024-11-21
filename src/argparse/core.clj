@@ -14,7 +14,7 @@
 (defn find-if [pred lst]
   (first (filter pred lst)))
 
-(m/=> take! [:function [:=> [:car :any] :any]])
+(m/=> take! [:function [:=> [:cat :any :any] :any]])
 (defn take! [args n]
   (let [res (transient [])]
     (dotimes [_ n]
@@ -60,28 +60,34 @@
         (assoc-in [:default dest] default))))
 
 (m/=> parse-args [:function [:=> [:cat :any :any] :any]])
-(defn parse-args [parser args]
-  (let [res (atom (:default parser))
-        args* (atom args)
-        position-args (atom [])]
-    (loop []
-      (when @args*
-        (let [arg (first @args*)]
-          (cond
-            (str/starts-with? arg "-")
-            (do
-              (let [argument (or (find-if #((:option-string %) arg) (:argument parser))
-                                 (throw (Exception. (str "Invalid argument: " arg))))]
-                
-                (swap! args* next)))
+(defn parse-args
+  ([parser args]
+   (parse-args parser args (:default parser)))
+  ([parser args res]
+   (if (seq args)
+     (let [args* (atom args)
+           arg (first @args*)
+           key (atom nil)
+           parsed (atom nil)]
+       (cond
+         (str/starts-with? arg "-")
+         (do
+           (let [argument (or (find-if #((:option-string %) arg) (:argument parser))
+                              (throw (Exception. (str "Invalid argument: " arg))))]
+             (reset! key (:dest argument))
+             (swap! args* next)
+             (reset! parsed (first @args*))
+             (when (and (str/starts-with? @parsed "-")
+                        (not (numeric? @parsed)))
+               (throw (Exception. (str "Argument is required: " arg))))
+             (when (nil? @parsed)
+               (throw (Exception. (str "Argument is required: " arg))))
+             (swap! args* next)))
 
-            :else
-            (do
-              (swap! position-args conj arg)
-              (swap! args* next))))
-
-        (recur)))
-    @res))
+         :else
+         (throw (Exception. "Not implemented")))
+       (recur parser @args* (assoc res @key @parsed)))
+     res)))
 
 (defn -main
   "The entrypoint."
